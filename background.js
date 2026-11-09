@@ -144,15 +144,28 @@ async function handleCapturePipeline(rawDataUrl, bounds = null) {
   await showNotification('Snippet Link Copied!', 'Click notification to open in browser: ' + snippetUrl, snippetUrl);
 }
 
+// Check if URL is restricted by Chrome's extension security policies
+function isRestrictedUrl(url) {
+  if (!url) return false;
+  return (
+    url.startsWith('chrome://') ||
+    url.startsWith('chrome-extension://') ||
+    url.startsWith('edge://') ||
+    url.startsWith('about:') ||
+    url.startsWith('view-source:') ||
+    url.includes('chromewebstore.google.com') ||
+    url.includes('chrome.google.com/webstore')
+  );
+}
+
 // Start full visible tab capture
 async function startTabCapture() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.id) return;
 
-    const url = tab.url || '';
-    if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('edge://') || url.startsWith('about:')) {
-      await showNotification('Cannot Capture', 'Chrome prohibits capturing internal browser pages.');
+    if (isRestrictedUrl(tab.url)) {
+      await showNotification('Cannot Capture', 'Chrome prohibits capturing internal browser and web store pages.');
       return;
     }
 
@@ -170,9 +183,8 @@ async function startAreaCapture() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.id) return;
 
-    const url = tab.url || '';
-    if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('edge://') || url.startsWith('about:') || url.startsWith('view-source:')) {
-      await showNotification('Cannot Capture', 'Chrome prohibits injecting capture overlays into browser internal pages.');
+    if (isRestrictedUrl(tab.url)) {
+      await showNotification('Cannot Capture', 'Chrome prohibits injecting capture overlays into this page.');
       return;
     }
 
@@ -205,13 +217,15 @@ chrome.commands.onCommand.addListener((command) => {
 // Listen for messages from popup, content scripts, and offscreen
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'triggerAreaCapture') {
-    startAreaCapture();
+    // 150ms timeout ensures popup and drop-shadow window close fully before capturing visible tab
+    setTimeout(startAreaCapture, 150);
     sendResponse({ started: true });
     return true;
   }
 
   if (message.action === 'triggerTabCapture') {
-    startTabCapture();
+    // 150ms timeout ensures popup closes fully before capturing visible tab
+    setTimeout(startTabCapture, 150);
     sendResponse({ started: true });
     return true;
   }

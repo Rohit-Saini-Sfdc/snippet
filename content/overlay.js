@@ -135,6 +135,10 @@
 
   document.documentElement.appendChild(host);
 
+  // Prevent background page scrolling while capture overlay is active
+  host.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
+  host.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+
   let isDragging = false;
   let startX = 0;
   let startY = 0;
