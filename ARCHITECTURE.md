@@ -25,7 +25,7 @@ User Action (Shortcut / Popup)
      │
      ├── 4. Upload binary ArrayBuffer via [lib/firebase-storage.js]
      │        └── REST API -> Google Cloud Storage (Firebase Storage)
-     │        └── Bearer token auth with automatic refresh token recycling
+     │        └── Standard Firebase Storage auth (`Authorization: Firebase <token>`) with automatic session renewal
      │        └── Generates direct capability URL
      │
      ├── 5. Write URL to System Clipboard via offscreen document
@@ -62,7 +62,7 @@ User Action (Shortcut / Popup)
 * **Solution:** Implemented a lightweight, self-contained REST client (`lib/firebase-storage.js`) leveraging:
   - Google Identity Toolkit REST API (`/v1/accounts:signUp?key=...`) for initial Anonymous Auth.
   - Google Secure Token API (`/v1/token?grant_type=refresh_token`) for silent session renewals.
-  - Firebase Storage REST API (`/v0/b/{bucket}/o?name={path}&uploadType=media`) with standard `Authorization: Bearer <token>`.
+  - Firebase Storage REST API (`/v0/b/{bucket}/o?name={path}&uploadType=media`) with official SDK standard `Authorization: Firebase <token>`.
 * **Benefit:**
   - Zero build step required: users can clone the repo and immediately click **Load unpacked** in Chrome.
   - Total library footprint is under 6 KB of clean, readable vanilla JavaScript.

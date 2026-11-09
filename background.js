@@ -51,6 +51,13 @@ chrome.notifications.onClicked.addListener(async (notifId) => {
   }
 });
 
+// Clean up session storage notification entries when notifications are closed/dismissed
+chrome.notifications.onClosed.addListener(async (notifId) => {
+  try {
+    await chrome.storage.session.remove([`notif_${notifId}`]);
+  } catch (_) {}
+});
+
 // Show desktop notification and persist URL in session storage
 async function showNotification(title, message, url = null) {
   const notifId = 'snippet-' + Date.now();
@@ -80,9 +87,9 @@ async function saveToHistory(item) {
 
 // Show in-page floating toast inside the active tab
 async function showInPageToast(tabId, state, snippetUrl = null, errorText = null) {
-  if (!tabId) return;
+  if (!tabId) return false;
   try {
-    await chrome.scripting.executeScript({
+    const results = await chrome.scripting.executeScript({
       target: { tabId },
       func: (state, url, err) => {
         let host = document.getElementById('snippet-toast-host');
@@ -122,6 +129,9 @@ async function showInPageToast(tabId, state, snippetUrl = null, errorText = null
             .toast.copied {
               border-color: rgba(16, 185, 129, 0.4);
             }
+            .toast.warning {
+              border-color: rgba(245, 158, 11, 0.4);
+            }
             .badge-icon {
               width: 18px;
               height: 18px;
@@ -135,6 +145,10 @@ async function showInPageToast(tabId, state, snippetUrl = null, errorText = null
             }
             .badge-icon.success {
               background: #10b981;
+              color: #ffffff;
+            }
+            .badge-icon.warning {
+              background: #f59e0b;
               color: #ffffff;
             }
             .badge-icon.uploading {
@@ -175,6 +189,16 @@ async function showInPageToast(tabId, state, snippetUrl = null, errorText = null
           document.documentElement.appendChild(host);
         }
 
+        // Clear any stale removal timer from an earlier capture so it doesn't remove this toast prematurely
+        if (host._removeTimer) {
+          clearTimeout(host._removeTimer);
+          host._removeTimer = null;
+        }
+
+        // Reset visibility styling in case an earlier toast was fading out
+        host.style.opacity = '1';
+        host.style.transform = 'translateX(-50%)';
+
         const shadow = host.shadowRoot;
         let toast = shadow.querySelector('.toast');
         if (!toast) {
@@ -197,11 +221,18 @@ async function showInPageToast(tabId, state, snippetUrl = null, errorText = null
           label.textContent = 'Uploading snippet to Google Cloud...';
           toast.appendChild(icon);
           toast.appendChild(label);
+
+          // 25-second fallback auto-dismiss prevents stuck toast if network hangs
+          host._removeTimer = setTimeout(() => {
+            if (host?.parentNode) host.remove();
+          }, 25000);
         } else if (state === 'copied') {
           toast.className = 'toast copied';
           icon.className = 'badge-icon success';
           icon.textContent = '✓';
-          label.textContent = 'Link copied to clipboard! (Cmd+V to paste)';
+
+          const isMac = (navigator.platform || navigator.userAgent).toLowerCase().includes('mac');
+          label.textContent = `Link copied to clipboard! (${isMac ? 'Cmd+V' : 'Ctrl+V'})`;
           toast.appendChild(icon);
           toast.appendChild(label);
 
@@ -209,12 +240,11 @@ async function showInPageToast(tabId, state, snippetUrl = null, errorText = null
             const btn = document.createElement('button');
             btn.className = 'btn-view';
             btn.textContent = 'View';
-            btn.addEventListener('click', () => window.open(url, '_blank'));
+            btn.addEventListener('click', () => window.open(url, '_blank', 'noopener,noreferrer'));
             toast.appendChild(btn);
           }
 
-          // Auto-remove after 3.2 seconds
-          setTimeout(() => {
+          host._removeTimer = setTimeout(() => {
             if (host && host.parentNode) {
               host.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
               host.style.opacity = '0';
@@ -222,6 +252,26 @@ async function showInPageToast(tabId, state, snippetUrl = null, errorText = null
               setTimeout(() => host.remove(), 260);
             }
           }, 3200);
+        } else if (state === 'upload_only') {
+          // Upload succeeded, but clipboard copy failed
+          toast.className = 'toast warning';
+          icon.className = 'badge-icon warning';
+          icon.textContent = '✓';
+          label.textContent = 'Snippet uploaded (copy to clipboard failed)';
+          toast.appendChild(icon);
+          toast.appendChild(label);
+
+          if (url) {
+            const btn = document.createElement('button');
+            btn.className = 'btn-view';
+            btn.textContent = 'View';
+            btn.addEventListener('click', () => window.open(url, '_blank', 'noopener,noreferrer'));
+            toast.appendChild(btn);
+          }
+
+          host._removeTimer = setTimeout(() => {
+            if (host?.parentNode) host.remove();
+          }, 6000);
         } else if (state === 'error') {
           toast.className = 'toast';
           icon.className = 'badge-icon error';
@@ -229,13 +279,17 @@ async function showInPageToast(tabId, state, snippetUrl = null, errorText = null
           label.textContent = err || 'Upload failed';
           toast.appendChild(icon);
           toast.appendChild(label);
-          setTimeout(() => host.remove(), 4000);
+          host._removeTimer = setTimeout(() => {
+            if (host?.parentNode) host.remove();
+          }, 4000);
         }
+        return true;
       },
       args: [state, snippetUrl, errorText]
     });
+    return Boolean(results && results.length > 0 && results[0].result);
   } catch (_) {
-    // Non-fatal if on restricted page
+    return false;
   }
 }
 
@@ -265,36 +319,41 @@ async function handleCapturePipeline(rawDataUrl, bounds = null, tabId = null) {
   const quality = config.imageQuality ? config.imageQuality / 100 : 0.92;
 
   // Show immediate in-page uploading toast
-  await showInPageToast(tabId, 'uploading');
-
-  // Process image via offscreen canvas (handles cropping, format conversion, and thumbnail generation)
-  const processRes = await chrome.runtime.sendMessage({
-    target: 'offscreen',
-    action: 'processImage',
-    dataUrl: rawDataUrl,
-    bounds,
-    format,
-    quality
-  });
-
-  if (!processRes || !processRes.success) {
-    await showInPageToast(tabId, 'error', null, 'Processing failed');
-    throw new Error(processRes?.error || 'Image processing failed');
-  }
-
-  const client = new FirebaseStorageClient(config);
-  const buffer = await dataUrlToArrayBuffer(processRes.dataUrl);
+  const hasToast = await showInPageToast(tabId, 'uploading');
 
   try {
+    // Process image via offscreen canvas (handles cropping, format conversion, and thumbnail generation)
+    const processRes = await chrome.runtime.sendMessage({
+      target: 'offscreen',
+      action: 'processImage',
+      dataUrl: rawDataUrl,
+      bounds,
+      format,
+      quality
+    });
+
+    if (!processRes || !processRes.success) {
+      throw new Error(processRes?.error || 'Image processing failed');
+    }
+
+    const client = new FirebaseStorageClient(config);
+    const buffer = await dataUrlToArrayBuffer(processRes.dataUrl);
+
     const uploadRes = await client.uploadImage(buffer, processRes.mimeType, format);
     const snippetUrl = uploadRes.url;
 
     // Copy to system clipboard via offscreen
-    await chrome.runtime.sendMessage({
-      target: 'offscreen',
-      action: 'copyToClipboard',
-      text: snippetUrl
-    });
+    let copySuccess = false;
+    try {
+      const copyRes = await chrome.runtime.sendMessage({
+        target: 'offscreen',
+        action: 'copyToClipboard',
+        text: snippetUrl
+      });
+      copySuccess = Boolean(copyRes?.success);
+    } catch (copyErr) {
+      console.warn('Clipboard copy message failed:', copyErr);
+    }
 
     // Save to history using lightweight thumbnail (~2KB)
     await saveToHistory({
@@ -305,14 +364,26 @@ async function handleCapturePipeline(rawDataUrl, bounds = null, tabId = null) {
       thumbnail: processRes.thumbnailDataUrl || null
     });
 
-    // Show in-page confirmation toast
-    await showInPageToast(tabId, 'copied', snippetUrl);
+    if (copySuccess) {
+      await showInPageToast(tabId, 'copied', snippetUrl);
+    } else {
+      await showInPageToast(tabId, 'upload_only', snippetUrl);
+    }
 
-    // Desktop notification backup
-    await showNotification('Snippet Link Copied!', 'Click notification to open in browser: ' + snippetUrl, snippetUrl);
-  } catch (uploadErr) {
-    await showInPageToast(tabId, 'error', null, uploadErr.message);
-    throw uploadErr;
+    // Only show desktop notification if in-page toast could NOT be displayed (e.g. internal pages)
+    if (!hasToast) {
+      await showNotification(
+        copySuccess ? 'Snippet Link Copied!' : 'Snippet Uploaded!',
+        copySuccess ? 'Click notification to open in browser: ' + snippetUrl : 'Click to open snippet: ' + snippetUrl,
+        snippetUrl
+      );
+    }
+  } catch (err) {
+    console.error('Capture pipeline error:', err);
+    await showInPageToast(tabId, 'error', null, err.message);
+    if (!hasToast) {
+      await showNotification('Capture Failed', err.message);
+    }
   }
 }
 
