@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Snippet - Extension Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="layout-container">
+    <!-- Sidebar / Navigation -->
+    <aside class="sidebar">
+      <div class="brand">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+        <div>
+          <h2>Snippet</h2>
+          <span class="version">v1.0.0</span>
+        </div>
+      </div>
+
+      <nav class="nav-links">
+        <a href="#config-section" class="nav-item active">Configuration</a>
+        <a href="#preferences-section" class="nav-item">Preferences</a>
+        <a href="#guide-section" class="nav-item">GCS / Firebase Setup</a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="quota-badge">
+          <strong>GCS Free Tier</strong>
+          <span>5 GB Storage • 5k Uploads/mo</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <header class="content-header">
+        <h1>Extension Settings</h1>
+        <p class="subtitle">Connect your Google Cloud / Firebase Storage bucket to enable instant screenshot hosting.</p>
+      </header>
+
+      <!-- Quick Paste Section -->
+      <section class="card" id="quick-paste-section">
+        <div class="card-header">
+          <h3>Quick Setup (Paste Firebase Config)</h3>
+          <span class="badge">Recommended</span>
+        </div>
+        <p class="card-desc">
+          In your Firebase Console (Project Settings > General > Your Apps > Web app), copy the <code>firebaseConfig</code> object and paste it below. Snippet will parse the fields automatically.
+        </p>
+        <div class="textarea-wrapper">
+          <textarea id="raw-config" rows="4" placeholder="const firebaseConfig = {&#10;  apiKey: &quot;AIzaSy...&quot;,&#10;  projectId: &quot;my-project-12345&quot;,&#10;  storageBucket: &quot;my-project.appspot.com&quot;&#10;};"></textarea>
+        </div>
+        <button type="button" id="btn-parse-config" class="btn btn-secondary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          Auto-Fill from Pasted Config
+        </button>
+      </section>
+
+      <!-- Detailed Fields Form -->
+      <form id="settings-form">
+        <section class="card" id="config-section">
+          <div class="card-header">
+            <h3>Firebase / GCS Credentials</h3>
+          </div>
+
+          <div class="form-group">
+            <label for="storageBucket">Storage Bucket <span class="required">*</span></label>
+            <input type="text" id="storageBucket" placeholder="e.g., your-project-id.appspot.com" required>
+            <span class="hint">The GCS or Firebase storage bucket name where screenshots will be saved.</span>
+          </div>
+
+          <div class="form-group">
+            <label for="apiKey">Web API Key <span class="badge-optional">Optional</span></label>
+            <input type="text" id="apiKey" placeholder="e.g., AIzaSyD-xxxxxxxxxxxxxx">
+            <span class="hint">Required if using Firebase Anonymous Authentication for secure uploads.</span>
+          </div>
+
+          <div class="form-group">
+            <label for="projectId">Project ID <span class="badge-optional">Optional</span></label>
+            <input type="text" id="projectId" placeholder="e.g., my-project-12345">
+          </div>
+
+          <div class="form-group">
+            <label for="folder">Storage Folder Prefix</label>
+            <input type="text" id="folder" value="snippets" placeholder="snippets">
+            <span class="hint">Subfolder inside the bucket (e.g., <code>snippets</code> stores files as <code>snippets/snip_...png</code>).</span>
+          </div>
+        </section>
+
+        <!-- Preferences -->
+        <section class="card" id="preferences-section">
+          <div class="card-header">
+            <h3>Format & URL Preferences</h3>
+          </div>
+
+          <div class="form-group">
+            <label for="urlFormat">Snippet Link Format</label>
+            <select id="urlFormat">
+              <option value="firebase">Firebase Download URL (Permanent token link — Works with standard rules)</option>
+              <option value="gcs">Direct GCS Public URL (storage.googleapis.com/... — Requires allUsers ObjectViewer)</option>
+            </select>
+            <span class="hint">Both links can be viewed by anyone with the link.</span>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col">
+              <label for="imageFormat">Image File Format</label>
+              <select id="imageFormat">
+                <option value="png">PNG (Lossless, pixel-perfect, default)</option>
+                <option value="webp">WebP (Optimized, ~50% smaller size)</option>
+              </select>
+            </div>
+
+            <div class="form-group col" id="quality-container">
+              <label for="imageQuality">WebP Quality (<span id="quality-val">90%</span>)</label>
+              <input type="range" id="imageQuality" min="60" max="100" value="90">
+            </div>
+          </div>
+        </section>
+
+        <!-- Status & Buttons -->
+        <div class="actions-bar">
+          <div class="left-actions">
+            <button type="button" id="btn-test-connection" class="btn btn-secondary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              Test Connection & Upload
+            </button>
+            <span id="test-status" class="test-status"></span>
+          </div>
+
+          <button type="submit" id="btn-save" class="btn btn-primary">
+            Save Settings
+          </button>
+        </div>
+      </form>
+
+      <!-- Setup Guide Section -->
+      <section class="card" id="guide-section">
+        <div class="card-header">
+          <h3>Firebase & GCS Free Tier Setup Guide</h3>
+        </div>
+        <div class="guide-steps">
+          <div class="guide-step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <strong>Create a Free Firebase Project</strong>
+              <p>Go to the <a href="https://console.firebase.google.com" target="_blank">Firebase Console</a>, click <strong>Add Project</strong>, and create a project (Google Analytics is optional). The project is automatically placed on the <strong>Spark Free Plan</strong>.</p>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <strong>Enable Firebase Storage in a Free Tier Region</strong>
+              <p>In the Firebase sidebar, click <strong>Build > Storage > Get Started</strong>. When prompted for a location, select a US region (e.g., <code>us-central1</code> or <code>us-east1</code>) to qualify for Google Cloud Storage's 5 GB Always Free tier.</p>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <div class="step-num">3</div>
+            <div class="step-content">
+              <strong>Enable Anonymous Authentication</strong>
+              <p>In Firebase sidebar, click <strong>Build > Authentication > Sign-in method</strong>. Click <strong>Anonymous</strong>, switch the toggle to <strong>Enable</strong>, and click <strong>Save</strong>. This allows the extension to authenticate uploads cleanly without password prompts.</p>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <div class="step-num">4</div>
+            <div class="step-content">
+              <strong>Configure Storage Security Rules</strong>
+              <p>In <strong>Build > Storage > Rules</strong>, replace the rules with the following so links can be viewed in documents:</p>
+              <pre class="code-box">rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}</pre>
+              <p>Click <strong>Publish</strong>.</p>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <div class="step-num">5</div>
+            <div class="step-content">
+              <strong>Register Web App & Copy Config</strong>
+              <p>Go to <strong>Project Settings (gear icon) > General > Your apps</strong>, click the <strong>&lt;/&gt; (Web)</strong> icon, name it "Snippet", and copy the <code>firebaseConfig</code> object into the quick paste box above.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>

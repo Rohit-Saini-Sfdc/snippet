@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "Snippet - Instant Screenshot to GCS",
+  "version": "1.0.0",
+  "description": "Capture screen snippets, automatically upload to Google Cloud Storage / Firebase, and copy instant URLs to your clipboard.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "clipboardWrite",
+    "notifications",
+    "scripting",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "https://firebasestorage.googleapis.com/*",
+    "https://identitytoolkit.googleapis.com/*",
+    "https://storage.googleapis.com/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "Snippet"
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
+  },
+  "commands": {
+    "capture-area": {
+      "suggested_key": {
+        "default": "Alt+Shift+S",
+        "mac": "Alt+Shift+S"
+      },
+      "description": "Capture selected screen area"
+    },
+    "capture-tab": {
+      "suggested_key": {
+        "default": "Alt+Shift+F",
+        "mac": "Alt+Shift+F"
+      },
+      "description": "Capture full visible tab"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

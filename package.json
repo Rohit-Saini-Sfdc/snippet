@@ -1,0 +1,20 @@
+{
+  "name": "snippet-extension",
+  "version": "1.0.0",
+  "description": "Instant screenshot to Google Cloud Storage (Firebase) Chrome Extension",
+  "main": "background.js",
+  "type": "module",
+  "scripts": {
+    "lint": "echo \"Ready for unpacked load in chrome://extensions\""
+  },
+  "keywords": [
+    "chrome-extension",
+    "manifest-v3",
+    "screenshot",
+    "google-cloud-storage",
+    "firebase-storage",
+    "snippet"
+  ],
+  "author": "",
+  "license": "MIT"
+}

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Snippet</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo-title">
+        <svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+        <span class="app-name">Snippet</span>
+      </div>
+      <div id="status-pill" class="status-pill checking">Checking...</div>
+    </header>
+
+    <!-- Main Capture Buttons -->
+    <section class="actions-section">
+      <button id="btn-capture-area" class="action-btn primary-btn">
+        <div class="btn-content">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 3H3v3m15-3h3v3M6 21H3v-3m15 3h3v-3"/>
+            <rect x="7" y="7" width="10" height="10" rx="1" stroke-dasharray="2 2"/>
+          </svg>
+          <div class="btn-text">
+            <span class="btn-label">Capture Area</span>
+            <span class="btn-hint">Click & drag rectangle</span>
+          </div>
+        </div>
+        <kbd class="shortcut-key">Alt+Shift+S</kbd>
+      </button>
+
+      <button id="btn-capture-tab" class="action-btn secondary-btn">
+        <div class="btn-content">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2"/>
+            <line x1="8" y1="21" x2="16" y2="21"/>
+            <line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+          <div class="btn-text">
+            <span class="btn-label">Capture Visible Tab</span>
+            <span class="btn-hint">Entire visible window</span>
+          </div>
+        </div>
+        <kbd class="shortcut-key">Alt+Shift+F</kbd>
+      </button>
+    </section>
+
+    <!-- Recent History -->
+    <section class="history-section">
+      <div class="history-header">
+        <span class="history-title">Recent Snippets</span>
+        <button id="btn-clear-history" class="text-btn" title="Clear history">Clear</button>
+      </div>
+      <div id="history-list" class="history-list">
+        <div class="empty-state">No snippets taken yet</div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <a href="#" id="link-options" class="footer-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <span>GCS / Firebase Settings</span>
+      </a>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
