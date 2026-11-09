@@ -2,7 +2,7 @@
 
 > A lightweight, open-source Google Chrome extension (Manifest V3) that captures screen snippets, uploads them directly to your personal **Google Cloud Storage (via Firebase Storage)** within the **Always Free tier**, and copies an instant, shareable URL directly to your clipboard.
 
-Inspired by Google's internal employee screenshot and snippet workflow, designed to let you paste clean image links into Google Docs, Markdown notes, PR descriptions, and Slack instead of pasting heavy raw image files.
+Inspired by Google's internal employee screenshot and snippet tool (`screenshot/`), designed to let you paste clean image links into Google Docs, Notion, Slack, Markdown notes, and PR descriptions instead of pasting heavy raw image files.
 
 ---
 
@@ -10,9 +10,10 @@ Inspired by Google's internal employee screenshot and snippet workflow, designed
 
 - **Area Selection Crop (`Alt+Shift+S`):** Drag and select any portion of your screen with live pixel dimensions.
 - **Full Visible Tab Capture (`Alt+Shift+F`):** Instant single-click capture of the entire visible browser window.
-- **Pristine Capture Pipeline:** Captures the tab buffer *before* rendering the crop overlay, guaranteeing zero visual artifacts or darkened overlays in your final image.
+- **Pristine Capture Pipeline:** Captures the tab buffer *before* rendering the crop overlay, guaranteeing zero visual artifacts, dimming, or UI contamination.
+- **Direct Short URLs:** Get clean, compact direct image URLs (e.g. `https://storage.googleapis.com/<bucket>/5xn4zytp.png`) ready for immediate viewing and embedding.
 - **Automatic Clipboard Copy:** The moment upload finishes, the snippet URL is copied directly to your clipboard.
-- **100% Free Forever:** Runs on Google Cloud's **Always Free tier** (5 GB storage, 5,000 uploads/month, 100 GB egress).
+- **100% Free Forever:** Runs entirely within Google Cloud's **Always Free tier** (5 GB storage, 5,000 uploads/month, 100 GB egress).
 - **Public & Unguessable URLs:** Anyone with the link can view the image in documents; strangers cannot list or browse your bucket contents.
 - **Image Format Optimization:** Choose between lossless **PNG** or compressed **WebP** with customizable compression quality.
 - **Snippet History:** Built-in popup gallery storing your recent snippets with 1-click URL copying and image opening.
@@ -20,24 +21,24 @@ Inspired by Google's internal employee screenshot and snippet workflow, designed
 
 ---
 
-## 🚀 Quick Start Guide
+## 🚀 Step-by-Step Setup Guide
+
+Follow these steps once to set up your personal free storage backend:
 
 ### Step 1: Set Up Your Free Google Cloud / Firebase Account
 
-Firebase Storage is Google Cloud Storage under the hood. Following these steps ensures your bucket remains on the **Spark Free Plan (Always Free)**:
-
-1. **Create Firebase Project:**
+1. **Create a Firebase Project:**
    - Go to the [Firebase Console](https://console.firebase.google.com/).
    - Click **Add project** (or **Create a project**).
    - Enter a project name (e.g., `my-snippet-store`).
    - (Optional) Disable Google Analytics to keep things simple.
-   - Click **Create project**. Your project is automatically created on the **Spark Plan ($0/month)**.
+   - Click **Create project**.
 
 2. **Activate Storage in a Free Tier Region:**
-   - In the left sidebar, navigate to **Build** > **Storage**.
-   - Click **Get started**.
-   - When prompted for a location, select one of Google Cloud's **Always Free US regions**:
-     - `us-central1` (Iowa)
+   - In the left sidebar, navigate to **Build** > **Storage** and click **Get started**.
+   - If prompted to upgrade to the **Blaze (Pay as you go)** plan, click **Upgrade**. *(Google requires a billing profile to create storage buckets, but the **Always Free tier** remains 100% free up to 5 GB storage and 20,000 uploads/day).*
+   - When prompted for a storage location, select one of Google Cloud's **Always Free US regions**:
+     - `us-central1` (Iowa - Recommended)
      - `us-east1` (South Carolina)
      - `us-west1` (Oregon)
    - Click **Done**.
@@ -46,11 +47,11 @@ Firebase Storage is Google Cloud Storage under the hood. Following these steps e
    - In the left sidebar, click **Build** > **Authentication**.
    - Click **Get started**, then go to the **Sign-in method** tab.
    - Click **Anonymous**, toggle the switch to **Enable**, and click **Save**.
-   *(This allows the extension to authenticate uploads without requiring username/password prompts).*
+   *(This allows your extension to securely authenticate uploads without requiring username/password prompts).*
 
 4. **Set Storage Security Rules (Public Read, Authenticated Write):**
-   - In the left sidebar, navigate back to **Build** > **Storage** > **Rules** tab.
-   - Replace the default rules with the following:
+   - In the left sidebar, navigate to **Build** > **Storage** > **Rules** tab.
+   - Replace the rules with the following:
      ```javascript
      rules_version = '2';
      service firebase.storage {
@@ -67,46 +68,62 @@ Firebase Storage is Google Cloud Storage under the hood. Following these steps e
    - Click **Publish**.
 
 5. **Register Web App & Copy Configuration:**
-   - Click the **Gear icon (⚙️)** in the sidebar > **Project settings**.
+   - Click the **Gear icon (⚙️)** in the top-left sidebar > **Project settings**.
    - Under the **General** tab, scroll down to **Your apps** and click the **`</>` (Web)** icon.
    - App nickname: `Snippet Extension`. (Leave "Firebase Hosting" unchecked).
    - Click **Register app**.
-   - Under **Firebase SDK snippet**, select **Config** and copy the `firebaseConfig` block:
+   - Copy the `firebaseConfig` object:
      ```javascript
      const firebaseConfig = {
        apiKey: "AIzaSy...",
-       authDomain: "my-snippet-store.firebaseapp.com",
        projectId: "my-snippet-store",
-       storageBucket: "my-snippet-store.firebasestorage.app",
-       messagingSenderId: "...",
-       appId: "..."
+       storageBucket: "my-snippet-store.firebasestorage.app"
      };
      ```
+
+6. **(Optional - Recommended) Enable Direct Short GCS URLs:**
+   - To get clean, short URLs like `https://storage.googleapis.com/<bucket>/5xn4zytp.png`:
+   - Open [Google Cloud Storage Console](https://console.cloud.google.com/storage/browser).
+   - Click on your bucket name > **Permissions** tab > **Grant Access**.
+   - **New principals:** `allUsers`
+   - **Role:** **Cloud Storage** > **Storage Object Viewer**.
+   - Click **Save** and confirm public access.
+
+7. **(Optional - Peace of Mind) Set a \$1.00 Budget Email Alert:**
+   - Open [Google Cloud Billing Budgets](https://console.cloud.google.com/billing/budgets).
+   - Click **Create Budget**.
+   - Set Time range to **Monthly**, Budget type to **Specified amount**, Target amount to **`1.00`**.
+   - Under Actions, check **Email alerts to billing admins and users**.
+   - Click **Finish**. You will be emailed immediately if usage ever reaches \$0.50!
 
 ---
 
 ### Step 2: Install the Extension in Google Chrome
 
-1. Clone or download this repository to your computer:
+1. Clone or download this repository:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/snippet.git
+   git clone https://github.com/Rohit-Saini-Sfdc/snippet.git
    ```
-2. Open Google Chrome and enter `chrome://extensions/` in the address bar.
+2. Open Google Chrome and enter `chrome://extensions/` in the URL bar.
 3. In the top-right corner, toggle **Developer mode** to **ON**.
 4. In the top-left corner, click **Load unpacked**.
 5. Select the `snippet` folder from this repository.
-6. The **Snippet** icon will now appear in your Chrome toolbar. Click the puzzle icon to pin it!
+6. Click the puzzle icon (🧩) in Chrome's toolbar and **pin Snippet** to your bar.
 
 ---
 
 ### Step 3: Configure the Extension
 
-1. Right-click the **Snippet** extension icon and choose **Options** (or click the Settings gear inside the extension popup).
-2. Paste the `firebaseConfig` code block you copied from Firebase into the **Quick Setup** text box.
+1. Right-click the **Snippet** camera icon and choose **Options** (or open the popup and click the gear at the bottom).
+2. Paste the `firebaseConfig` block you copied into the **Quick Setup** box.
 3. Click **Auto-Fill from Pasted Config**.
-4. Click **Test Connection & Upload**:
-   - You should see a green success message with a link to a test snippet!
-5. Click **Save Settings**.
+4. Select your preferred URL and Filename formats:
+   - **Snippet Link Format:** *Direct GCS Public URL* (Shortest) or *Firebase Download URL*.
+   - **Filename Style:** *Short ID* (e.g. `5xn4zytp.png`).
+   - **Storage Folder Prefix:** Leave blank for root or type `s`.
+5. Click **Test Connection & Upload**:
+   - You should see a green checkmark with a clickable link confirming success!
+6. Click **Save Settings**.
 
 ---
 
@@ -127,9 +144,10 @@ Firebase Storage is Google Cloud Storage under the hood. Following these steps e
 
 ## 🔒 Security & Privacy Model
 
-- **Capability URLs:** Images are given high-entropy, cryptographically random names (e.g., `snip_2026-10-29_9f8e2bc4.png`).
-- **No Directory Listing:** The bucket permissions allow reading specific objects via direct URL, but **bucket listing is disabled**. No stranger or search engine can list or discover other images in your bucket.
+- **Capability URLs:** Images are given high-entropy, random IDs (e.g., `snip_2026-10-29_9f8e2bc4.png` or `5xn4zytp.png`).
+- **No Directory Listing:** The bucket permissions allow reading specific objects via direct URL, but **bucket listing is disabled**. Strangers or search engines cannot list or discover other images in your bucket.
 - **Write-Protected:** Uploads require an authenticated session token generated by your Firebase API key; unauthorized visitors cannot write or overwrite files.
+- **Zero Credentials in Code:** All credentials and bucket names are saved strictly inside your local browser storage (`chrome.storage.sync`) and are never committed to git.
 
 ---
 
@@ -166,7 +184,8 @@ snippet/
 │   ├── options.html         # Settings & setup guide dashboard
 │   ├── options.js           # Config auto-parser & connection tester
 │   └── options.css          # Options page stylesheet
-└── icons/                   # Extension icons (16px, 48px, 128px)
+├── icons/                   # Extension icons (16px, 48px, 128px)
+└── ARCHITECTURE.md          # Technical design decisions and tradeoffs
 ```
 
 ---
