@@ -1,6 +1,5 @@
 import { FirebaseStorageClient } from './lib/firebase-storage.js';
 
-let pendingCaptureDataUrl = null;
 let creatingOffscreenPromise = null;
 
 // Ensure offscreen document exists for canvas & clipboard operations
@@ -19,29 +18,41 @@ async function ensureOffscreenDocument() {
     return;
   }
 
-  creatingOffscreenPromise = chrome.offscreen.createDocument({
-    url: 'offscreen/offscreen.html',
-    reasons: ['CLIPBOARD', 'BLOBS'],
-    justification: 'Crop screenshots with Canvas and copy snippet URLs to clipboard'
-  });
-
-  await creatingOffscreenPromise;
-  creatingOffscreenPromise = null;
-}
-
-// Convert data:image/...;base64,... to ArrayBuffer
-function dataUrlToArrayBuffer(dataUrl) {
-  const base64 = dataUrl.split(',')[1];
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
+  try {
+    creatingOffscreenPromise = chrome.offscreen.createDocument({
+      url: 'offscreen/offscreen.html',
+      reasons: ['CLIPBOARD', 'BLOBS'],
+      justification: 'Crop screenshots with Canvas and copy snippet URLs to clipboard'
+    });
+    await creatingOffscreenPromise;
+  } finally {
+    creatingOffscreenPromise = null;
   }
-  return bytes.buffer;
 }
 
-// Show desktop notification
-function showNotification(title, message, url = null) {
+// Convert data:image/...;base64,... to ArrayBuffer asynchronously without blocking SW thread
+async function dataUrlToArrayBuffer(dataUrl) {
+  const res = await fetch(dataUrl);
+  return await res.arrayBuffer();
+}
+
+// Top-level notification click listener (persists across service worker restarts)
+chrome.notifications.onClicked.addListener(async (notifId) => {
+  try {
+    const key = `notif_${notifId}`;
+    const data = await chrome.storage.session.get([key]);
+    const url = data[key];
+    if (url) {
+      await chrome.tabs.create({ url });
+      await chrome.storage.session.remove([key]);
+    }
+  } catch (err) {
+    console.warn('Error opening notification URL:', err);
+  }
+});
+
+// Show desktop notification and persist URL in session storage
+async function showNotification(title, message, url = null) {
   const notifId = 'snippet-' + Date.now();
   chrome.notifications.create(notifId, {
     type: 'basic',
@@ -52,17 +63,11 @@ function showNotification(title, message, url = null) {
   });
 
   if (url) {
-    const clickListener = (clickedId) => {
-      if (clickedId === notifId) {
-        chrome.tabs.create({ url });
-        chrome.notifications.onClicked.removeListener(clickListener);
-      }
-    };
-    chrome.notifications.onClicked.addListener(clickListener);
+    await chrome.storage.session.set({ [`notif_${notifId}`]: url });
   }
 }
 
-// Save snippet to recent history
+// Save snippet to recent history (stores downsampled thumbnail to avoid storage quota exhaustion)
 async function saveToHistory(item) {
   try {
     const { snippetHistory = [] } = await chrome.storage.local.get(['snippetHistory']);
@@ -90,7 +95,7 @@ async function handleCapturePipeline(rawDataUrl, bounds = null) {
   ]);
 
   if (!config.storageBucket) {
-    showNotification('Snippet Setup Needed', 'Please configure your Firebase Storage Bucket in Extension Options.');
+    await showNotification('Snippet Setup Needed', 'Please configure your Firebase Storage Bucket in Extension Options.');
     chrome.runtime.openOptionsPage();
     return;
   }
@@ -98,7 +103,7 @@ async function handleCapturePipeline(rawDataUrl, bounds = null) {
   const format = config.imageFormat || 'png';
   const quality = config.imageQuality ? config.imageQuality / 100 : 0.92;
 
-  // Process image via offscreen canvas (handles cropping + format conversion)
+  // Process image via offscreen canvas (handles cropping, format conversion, and thumbnail generation)
   const processRes = await chrome.runtime.sendMessage({
     target: 'offscreen',
     action: 'processImage',
@@ -112,10 +117,10 @@ async function handleCapturePipeline(rawDataUrl, bounds = null) {
     throw new Error(processRes?.error || 'Image processing failed');
   }
 
-  showNotification('Uploading Snippet...', 'Sending screenshot to Google Cloud...');
+  await showNotification('Uploading Snippet...', 'Sending screenshot to Google Cloud...');
 
   const client = new FirebaseStorageClient(config);
-  const buffer = dataUrlToArrayBuffer(processRes.dataUrl);
+  const buffer = await dataUrlToArrayBuffer(processRes.dataUrl);
 
   const uploadRes = await client.uploadImage(buffer, processRes.mimeType, format);
   const snippetUrl = uploadRes.url;
@@ -127,16 +132,16 @@ async function handleCapturePipeline(rawDataUrl, bounds = null) {
     text: snippetUrl
   });
 
-  // Save to history with thumbnail
+  // Save to history using lightweight thumbnail (~2KB)
   await saveToHistory({
     url: snippetUrl,
     timestamp: Date.now(),
     width: processRes.width,
     height: processRes.height,
-    thumbnail: processRes.dataUrl.length < 500000 ? processRes.dataUrl : null
+    thumbnail: processRes.thumbnailDataUrl || null
   });
 
-  showNotification('Snippet Link Copied!', 'Click notification to open in browser: ' + snippetUrl, snippetUrl);
+  await showNotification('Snippet Link Copied!', 'Click notification to open in browser: ' + snippetUrl, snippetUrl);
 }
 
 // Start full visible tab capture
@@ -149,7 +154,7 @@ async function startTabCapture() {
     await handleCapturePipeline(dataUrl, null);
   } catch (err) {
     console.error('Tab capture error:', err);
-    showNotification('Capture Error', err.message);
+    await showNotification('Capture Error', err.message);
   }
 }
 
@@ -160,26 +165,24 @@ async function startAreaCapture() {
     if (!tab || !tab.id) return;
 
     if (tab.url.startsWith('chrome://') || tab.url.startsWith('edge://') || tab.url.startsWith('about:')) {
-      showNotification('Cannot Capture', 'Chrome prohibits injecting capture overlays into browser internal pages.');
+      await showNotification('Cannot Capture', 'Chrome prohibits injecting capture overlays into browser internal pages.');
       return;
     }
 
     // Capture the pristine tab BEFORE injecting the overlay
-    pendingCaptureDataUrl = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
+    const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
 
-    // Inject CSS & JS overlay into the active tab
-    await chrome.scripting.insertCSS({
-      target: { tabId: tab.id },
-      files: ['content/overlay.css']
-    });
+    // Store in chrome.storage.session keyed by tabId so SW idle/restart does not lose the buffer
+    await chrome.storage.session.set({ [`capture_${tab.id}`]: dataUrl });
 
+    // Inject self-contained Shadow DOM overlay script into the active tab
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       files: ['content/overlay.js']
     });
   } catch (err) {
     console.error('Area capture error:', err);
-    showNotification('Area Capture Error', err.message);
+    await showNotification('Area Capture Error', err.message);
   }
 }
 
@@ -207,23 +210,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === 'captureCancelled') {
-    pendingCaptureDataUrl = null;
+    if (sender?.tab?.id) {
+      chrome.storage.session.remove([`capture_${sender.tab.id}`]);
+    }
     return false;
   }
 
   if (message.action === 'areaSelected') {
-    const rawDataUrl = pendingCaptureDataUrl;
-    pendingCaptureDataUrl = null;
+    (async () => {
+      try {
+        const tabId = sender?.tab?.id;
+        let rawDataUrl = null;
 
-    if (!rawDataUrl) {
-      showNotification('Capture Failed', 'Image buffer was lost. Please try again.');
-      return false;
-    }
+        if (tabId) {
+          const key = `capture_${tabId}`;
+          const stored = await chrome.storage.session.get([key]);
+          rawDataUrl = stored[key];
+          await chrome.storage.session.remove([key]);
+        }
 
-    handleCapturePipeline(rawDataUrl, message.bounds).catch((err) => {
-      console.error('Capture pipeline error:', err);
-      showNotification('Capture Failed', err.message);
-    });
+        if (!rawDataUrl) {
+          await showNotification('Capture Failed', 'Image buffer was lost. Please try again.');
+          return;
+        }
+
+        await handleCapturePipeline(rawDataUrl, message.bounds);
+      } catch (err) {
+        console.error('Capture pipeline error:', err);
+        await showNotification('Capture Failed', err.message);
+      }
+    })();
 
     return false;
   }

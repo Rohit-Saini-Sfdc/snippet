@@ -14,8 +14,8 @@
   "host_permissions": [
     "https://firebasestorage.googleapis.com/*",
     "https://identitytoolkit.googleapis.com/*",
-    "https://storage.googleapis.com/*",
-    "<all_urls>"
+    "https://securetoken.googleapis.com/*",
+    "https://storage.googleapis.com/*"
   ],
   "background": {
     "service_worker": "background.js",

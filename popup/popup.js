@@ -58,11 +58,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderHistory(items) {
     if (!items || items.length === 0) {
-      historyList.innerHTML = '<div class="empty-state">No snippets taken yet</div>';
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = 'No snippets taken yet';
+      historyList.replaceChildren(empty);
       return;
     }
 
-    historyList.innerHTML = '';
+    historyList.replaceChildren();
     items.forEach((item) => {
       const el = document.createElement('div');
       el.className = 'history-item';

@@ -152,12 +152,33 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     try {
       const result = await testClient.testConnection();
+      testStatus.textContent = '';
+
       if (result.warning) {
         testStatus.className = 'test-status error';
-        testStatus.innerHTML = `⚠️ ${result.warning} <br><a href="${result.url}" target="_blank" style="text-decoration:underline;">Test Link: ${result.url}</a>`;
+        const warnSpan = document.createElement('span');
+        warnSpan.textContent = `⚠️ ${result.warning} `;
+        const link = document.createElement('a');
+        link.href = result.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.style.textDecoration = 'underline';
+        link.textContent = 'Open Test Link';
+        testStatus.appendChild(warnSpan);
+        testStatus.appendChild(link);
       } else {
         testStatus.className = 'test-status success';
-        testStatus.innerHTML = `Connected! Test upload succeeded: <a href="${result.url}" target="_blank" style="color:#10b981;text-decoration:underline;">View test snippet</a>`;
+        const okSpan = document.createElement('span');
+        okSpan.textContent = 'Connected! Test upload succeeded: ';
+        const link = document.createElement('a');
+        link.href = result.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.style.color = '#10b981';
+        link.style.textDecoration = 'underline';
+        link.textContent = 'View test snippet';
+        testStatus.appendChild(okSpan);
+        testStatus.appendChild(link);
       }
     } catch (err) {
       console.error('Test error:', err);

@@ -59,8 +59,26 @@ async function handleProcess({ dataUrl, bounds, format = 'png', quality = 0.92 }
         const mimeType = format === 'webp' ? 'image/webp' : 'image/png';
         const processedDataUrl = canvas.toDataURL(mimeType, quality);
 
+        // Generate tiny downsampled thumbnail for history (max 80x60, ~2KB) to prevent storage quota exhaustion
+        let thumbnailDataUrl = null;
+        try {
+          const thumbCanvas = document.createElement('canvas');
+          const thumbCtx = thumbCanvas.getContext('2d');
+          const thumbScale = Math.min(80 / sWidth, 60 / sHeight, 1);
+          const tWidth = Math.max(1, Math.round(sWidth * thumbScale));
+          const tHeight = Math.max(1, Math.round(sHeight * thumbScale));
+
+          thumbCanvas.width = tWidth;
+          thumbCanvas.height = tHeight;
+          thumbCtx.drawImage(canvas, 0, 0, tWidth, tHeight);
+          thumbnailDataUrl = thumbCanvas.toDataURL('image/jpeg', 0.7);
+        } catch (thumbErr) {
+          console.warn('Failed to generate thumbnail:', thumbErr);
+        }
+
         resolve({
           dataUrl: processedDataUrl,
+          thumbnailDataUrl,
           width: sWidth,
           height: sHeight,
           mimeType,
