@@ -44,6 +44,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderHistory([]);
   });
 
+  // Display OS-specific shortcut badges (Option on Mac, Alt on Windows/Linux)
+  if (chrome.commands && chrome.commands.getAll) {
+    chrome.commands.getAll((commands) => {
+      const isMac = navigator.userAgent.includes('Mac');
+      commands.forEach((cmd) => {
+        let text = cmd.shortcut;
+        if (!text) {
+          text = cmd.name === 'capture-area' ? (isMac ? 'Option+Shift+S' : 'Alt+Shift+S') : (isMac ? 'Option+Shift+F' : 'Alt+Shift+F');
+        } else if (isMac && text.includes('Alt')) {
+          text = text.replace('Alt', 'Option (⌥)');
+        }
+        if (cmd.name === 'capture-area') {
+          const el = document.getElementById('shortcut-area');
+          if (el) el.textContent = text;
+        } else if (cmd.name === 'capture-tab') {
+          const el = document.getElementById('shortcut-tab');
+          if (el) el.textContent = text;
+        }
+      });
+    });
+  }
+
   // Load and render history
   const { snippetHistory = [] } = await chrome.storage.local.get(['snippetHistory']);
   renderHistory(snippetHistory);
