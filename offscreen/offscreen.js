@@ -94,27 +94,26 @@ async function handleProcess({ dataUrl, bounds, format = 'png', quality = 0.92 }
 }
 
 async function handleCopy(text) {
+  // In offscreen documents, textarea execCommand copy is the primary reliable method
   try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(text);
-      return;
-    }
-  } catch (err) {
-    console.warn('navigator.clipboard failed, attempting execCommand fallback:', err);
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const successful = document.execCommand('copy');
+    textarea.remove();
+    if (successful) return;
+  } catch (_) {
+    // Fall back to navigator.clipboard if execCommand throws
   }
 
-  // Fallback
-  const textarea = document.createElement('textarea');
-  textarea.value = text;
-  textarea.style.position = 'fixed';
-  textarea.style.opacity = '0';
-  document.body.appendChild(textarea);
-  textarea.focus();
-  textarea.select();
-  const successful = document.execCommand('copy');
-  textarea.remove();
-
-  if (!successful) {
-    throw new Error('Clipboard copy command was rejected');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
   }
+
+  throw new Error('Clipboard copy command was rejected');
 }

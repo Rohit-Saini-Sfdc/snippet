@@ -148,7 +148,13 @@ async function handleCapturePipeline(rawDataUrl, bounds = null) {
 async function startTabCapture() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab) return;
+    if (!tab || !tab.id) return;
+
+    const url = tab.url || '';
+    if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('edge://') || url.startsWith('about:')) {
+      await showNotification('Cannot Capture', 'Chrome prohibits capturing internal browser pages.');
+      return;
+    }
 
     const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
     await handleCapturePipeline(dataUrl, null);
@@ -164,7 +170,8 @@ async function startAreaCapture() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.id) return;
 
-    if (tab.url.startsWith('chrome://') || tab.url.startsWith('edge://') || tab.url.startsWith('about:')) {
+    const url = tab.url || '';
+    if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('edge://') || url.startsWith('about:') || url.startsWith('view-source:')) {
       await showNotification('Cannot Capture', 'Chrome prohibits injecting capture overlays into browser internal pages.');
       return;
     }
