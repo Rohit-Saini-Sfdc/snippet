@@ -83,6 +83,7 @@ async function handleCapturePipeline(rawDataUrl, bounds = null) {
     'apiKey',
     'projectId',
     'folder',
+    'filenameStyle',
     'urlFormat',
     'imageFormat',
     'imageQuality'

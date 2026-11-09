@@ -87,9 +87,18 @@
           </div>
 
           <div class="form-group">
-            <label for="folder">Storage Folder Prefix</label>
-            <input type="text" id="folder" value="snippets" placeholder="snippets">
-            <span class="hint">Subfolder inside the bucket (e.g., <code>snippets</code> stores files as <code>snippets/snip_...png</code>).</span>
+            <label for="folder">Storage Folder Prefix <span class="badge-optional">Optional</span></label>
+            <input type="text" id="folder" value="snippets" placeholder="Leave blank for root (shortest URL)">
+            <span class="hint">Subfolder inside bucket (e.g. <code>snippets</code> or leave empty for shortest URLs).</span>
+          </div>
+
+          <div class="form-group">
+            <label for="filenameStyle">Filename Style</label>
+            <select id="filenameStyle">
+              <option value="short">Short ID (e.g., 5xn4zytp.png — Shortest)</option>
+              <option value="timestamp">Timestamp + ID (e.g., snip_2026-10-29_5xn4zytp.png)</option>
+            </select>
+            <span class="hint">Short IDs reduce URL length significantly while remaining cryptographically unique.</span>
           </div>
         </section>
 

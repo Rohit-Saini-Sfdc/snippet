@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     apiKey: document.getElementById('apiKey'),
     projectId: document.getElementById('projectId'),
     folder: document.getElementById('folder'),
+    filenameStyle: document.getElementById('filenameStyle'),
     urlFormat: document.getElementById('urlFormat'),
     imageFormat: document.getElementById('imageFormat'),
     imageQuality: document.getElementById('imageQuality')
@@ -27,6 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     'apiKey',
     'projectId',
     'folder',
+    'filenameStyle',
     'urlFormat',
     'imageFormat',
     'imageQuality'
@@ -35,7 +37,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (saved.storageBucket) fields.storageBucket.value = saved.storageBucket;
   if (saved.apiKey) fields.apiKey.value = saved.apiKey;
   if (saved.projectId) fields.projectId.value = saved.projectId;
-  if (saved.folder) fields.folder.value = saved.folder;
+  if (saved.folder !== undefined) fields.folder.value = saved.folder;
+  if (saved.filenameStyle) fields.filenameStyle.value = saved.filenameStyle;
   if (saved.urlFormat) fields.urlFormat.value = saved.urlFormat;
   if (saved.imageFormat) fields.imageFormat.value = saved.imageFormat;
   if (saved.imageQuality) {
@@ -109,7 +112,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       storageBucket: fields.storageBucket.value.trim(),
       apiKey: fields.apiKey.value.trim(),
       projectId: fields.projectId.value.trim(),
-      folder: fields.folder.value.trim() || 'snippets',
+      folder: fields.folder.value.trim(),
+      filenameStyle: fields.filenameStyle.value,
       urlFormat: fields.urlFormat.value,
       imageFormat: fields.imageFormat.value,
       imageQuality: parseInt(fields.imageQuality.value, 10) || 90
@@ -141,14 +145,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       storageBucket: bucket,
       apiKey: fields.apiKey.value.trim(),
       projectId: fields.projectId.value.trim(),
-      folder: fields.folder.value.trim() || 'snippets',
+      folder: fields.folder.value.trim(),
+      filenameStyle: fields.filenameStyle.value,
       urlFormat: fields.urlFormat.value
     });
 
     try {
       const result = await testClient.testConnection();
-      testStatus.className = 'test-status success';
-      testStatus.innerHTML = `Connected! Test upload succeeded: <a href="${result.url}" target="_blank" style="color:#10b981;text-decoration:underline;">View test snippet</a>`;
+      if (result.warning) {
+        testStatus.className = 'test-status error';
+        testStatus.innerHTML = `⚠️ ${result.warning} <br><a href="${result.url}" target="_blank" style="text-decoration:underline;">Test Link: ${result.url}</a>`;
+      } else {
+        testStatus.className = 'test-status success';
+        testStatus.innerHTML = `Connected! Test upload succeeded: <a href="${result.url}" target="_blank" style="color:#10b981;text-decoration:underline;">View test snippet</a>`;
+      }
     } catch (err) {
       console.error('Test error:', err);
       testStatus.className = 'test-status error';
