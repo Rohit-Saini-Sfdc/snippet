@@ -168,6 +168,8 @@ body {
   color: var(--text-secondary);
   border: 1px solid var(--border);
   font-family: monospace;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* History Section */

@@ -131,8 +131,8 @@ Follow these steps once to set up your personal free storage backend:
 
 | Action | Shortcut (Mac / Windows / Linux) | Description |
 | :--- | :--- | :--- |
-| **Capture Selected Area** | <kbd>Option (Alt)</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | Injects crop crosshair. Drag a box and release. |
-| **Capture Visible Tab** | <kbd>Option (Alt)</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> | Immediately captures current tab. |
+| **Capture Selected Area** | <kbd>Option (⌥) / Alt</kbd> + <kbd>Shift (⇧)</kbd> + <kbd>S</kbd> | Injects crop crosshair. Drag a box and release. |
+| **Capture Visible Tab** | <kbd>Option (⌥) / Alt</kbd> + <kbd>Shift (⇧)</kbd> + <kbd>F</kbd> | Immediately captures current tab. |
 | **Cancel Capture** | <kbd>ESC</kbd> | Cancels selection overlay without uploading. |
 | **Popup Dashboard** | Click toolbar icon | View capture buttons, connection status, and history. |
 

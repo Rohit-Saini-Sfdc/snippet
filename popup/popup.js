@@ -44,23 +44,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderHistory([]);
   });
 
-  // Display OS-specific shortcut badges (Option on Mac, Alt on Windows/Linux)
+  // Format shortcut text to display both word and icon clearly
+  function formatShortcut(raw, defaultKey, isMac) {
+    if (!raw) {
+      return isMac ? `Option (⌥) + Shift (⇧) + ${defaultKey}` : `Alt + Shift + ${defaultKey}`;
+    }
+
+    if (isMac) {
+      let str = raw
+        .replace(/Alt|⌥/g, 'Option (⌥)')
+        .replace(/Shift|⇧/g, 'Shift (⇧)')
+        .replace(/Command|Cmd|⌘/g, 'Command (⌘)')
+        .replace(/Ctrl|Control|⌃/g, 'Control (⌃)');
+
+      if (!str.includes('+')) {
+        str = str
+          .replace(/Option \(⌥\)/, 'Option (⌥) + ')
+          .replace(/Shift \(⇧\)/, 'Shift (⇧) + ')
+          .replace(/Command \(⌘\)/, 'Command (⌘) + ')
+          .replace(/Control \(⌃\)/, 'Control (⌃) + ')
+          .replace(/\+\s*\+/, '+');
+      }
+      return str;
+    }
+
+    return raw;
+  }
+
+  // Display OS-specific shortcut badges (Option (⌥) on Mac, Alt on Windows/Linux)
   if (chrome.commands && chrome.commands.getAll) {
     chrome.commands.getAll((commands) => {
       const isMac = navigator.userAgent.includes('Mac');
       commands.forEach((cmd) => {
-        let text = cmd.shortcut;
-        if (!text) {
-          text = cmd.name === 'capture-area' ? (isMac ? 'Option+Shift+S' : 'Alt+Shift+S') : (isMac ? 'Option+Shift+F' : 'Alt+Shift+F');
-        } else if (isMac && text.includes('Alt')) {
-          text = text.replace('Alt', 'Option (⌥)');
-        }
         if (cmd.name === 'capture-area') {
           const el = document.getElementById('shortcut-area');
-          if (el) el.textContent = text;
+          if (el) el.textContent = formatShortcut(cmd.shortcut, 'S', isMac);
         } else if (cmd.name === 'capture-tab') {
           const el = document.getElementById('shortcut-tab');
-          if (el) el.textContent = text;
+          if (el) el.textContent = formatShortcut(cmd.shortcut, 'F', isMac);
         }
       });
     });
