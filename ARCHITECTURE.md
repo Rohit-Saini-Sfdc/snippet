@@ -77,10 +77,10 @@ User Action (Shortcut / Popup)
 
 ---
 
-### Decision 5: Session Storage Capture Buffer Resilience
-* **Problem:** In Manifest V3, background service workers terminate after ~30 seconds of inactivity. If a user spends more than 30 seconds framing an area selection, an in-memory image buffer would be destroyed when Chrome idles the worker.
-* **Solution:** Raw captures are keyed by `tabId` and persisted temporarily in `chrome.storage.session`. When `areaSelected` arrives, the buffer is read and cleared immediately.
-* **Benefit:** Area captures never fail with "buffer lost" regardless of how long the user takes to select an area.
+### Decision 5: IndexedDB Capture Buffer Resilience (Zero Quota Bottlenecks)
+* **Problem:** In Manifest V3, background service workers terminate after ~30 seconds of inactivity. Furthermore, `chrome.storage.session` has a strict 10 MB total quota across all sessions, which could overflow on high-resolution 4K/Retina displays with dense webpages.
+* **Solution:** Pristine tab captures are stored temporarily in browser-standard `indexedDB` (with automated session storage fallback) keyed by `tabId`. Unused or cancelled buffers are immediately cleaned up upon selection, cancellation, injection failure, or tab closure (`chrome.tabs.onRemoved`).
+* **Benefit:** Eliminates the 10 MB quota limit, allowing uncompressed high-DPI full-tab buffers of any size while guaranteeing survival across service worker idle suspensions.
 
 ---
 

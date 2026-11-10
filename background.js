@@ -36,6 +36,79 @@ async function dataUrlToArrayBuffer(dataUrl) {
   return await res.arrayBuffer();
 }
 
+// Lightweight IndexedDB storage for capture buffers (bypasses chrome.storage.session 10MB quota for 4K/Retina)
+function openBufferDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('snippet_buffer_db', 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('captures')) {
+        db.createObjectStore('captures');
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function setPendingCapture(tabId, dataUrl) {
+  try {
+    const db = await openBufferDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('captures', 'readwrite');
+      tx.objectStore('captures').put(dataUrl, String(tabId));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.warn('IndexedDB set failed, using session storage fallback:', err);
+    await chrome.storage.session.set({ [`capture_${tabId}`]: dataUrl });
+  }
+}
+
+async function getAndRemovePendingCapture(tabId) {
+  try {
+    const db = await openBufferDB();
+    const dataUrl = await new Promise((resolve, reject) => {
+      const tx = db.transaction('captures', 'readwrite');
+      const store = tx.objectStore('captures');
+      const getReq = store.get(String(tabId));
+      getReq.onsuccess = () => {
+        store.delete(String(tabId));
+        resolve(getReq.result);
+      };
+      getReq.onerror = () => reject(getReq.error);
+    });
+    if (dataUrl) return dataUrl;
+  } catch (err) {
+    console.warn('IndexedDB get failed, checking session storage fallback:', err);
+  }
+
+  const key = `capture_${tabId}`;
+  const stored = await chrome.storage.session.get([key]);
+  const fallbackUrl = stored[key] || null;
+  if (fallbackUrl) {
+    await chrome.storage.session.remove([key]);
+  }
+  return fallbackUrl;
+}
+
+async function removePendingCapture(tabId) {
+  try {
+    const db = await openBufferDB();
+    const tx = db.transaction('captures', 'readwrite');
+    tx.objectStore('captures').delete(String(tabId));
+  } catch (_) {}
+  try {
+    await chrome.storage.session.remove([`capture_${tabId}`]);
+  } catch (_) {}
+}
+
+// Automatically prune capture buffers if a tab is closed before selection finishes
+chrome.tabs.onRemoved.addListener((tabId) => {
+  removePendingCapture(tabId);
+});
+
 // Top-level notification click listener (persists across service worker restarts)
 chrome.notifications.onClicked.addListener(async (notifId) => {
   try {
@@ -222,10 +295,10 @@ async function showInPageToast(tabId, state, snippetUrl = null, errorText = null
           toast.appendChild(icon);
           toast.appendChild(label);
 
-          // 25-second fallback auto-dismiss prevents stuck toast if network hangs
+          // 60-second fallback auto-dismiss prevents stuck toast if network hangs
           host._removeTimer = setTimeout(() => {
             if (host?.parentNode) host.remove();
-          }, 25000);
+          }, 60000);
         } else if (state === 'copied') {
           toast.className = 'toast copied';
           icon.className = 'badge-icon success';
@@ -364,14 +437,15 @@ async function handleCapturePipeline(rawDataUrl, bounds = null, tabId = null) {
       thumbnail: processRes.thumbnailDataUrl || null
     });
 
+    let finalToastShown = false;
     if (copySuccess) {
-      await showInPageToast(tabId, 'copied', snippetUrl);
+      finalToastShown = await showInPageToast(tabId, 'copied', snippetUrl);
     } else {
-      await showInPageToast(tabId, 'upload_only', snippetUrl);
+      finalToastShown = await showInPageToast(tabId, 'upload_only', snippetUrl);
     }
 
-    // Only show desktop notification if in-page toast could NOT be displayed (e.g. internal pages)
-    if (!hasToast) {
+    // Only show desktop notification if in-page toast could NOT be displayed (e.g. user navigated or switched tabs)
+    if (!finalToastShown) {
       await showNotification(
         copySuccess ? 'Snippet Link Copied!' : 'Snippet Uploaded!',
         copySuccess ? 'Click notification to open in browser: ' + snippetUrl : 'Click to open snippet: ' + snippetUrl,
@@ -380,8 +454,8 @@ async function handleCapturePipeline(rawDataUrl, bounds = null, tabId = null) {
     }
   } catch (err) {
     console.error('Capture pipeline error:', err);
-    await showInPageToast(tabId, 'error', null, err.message);
-    if (!hasToast) {
+    const errorToastShown = await showInPageToast(tabId, 'error', null, err.message);
+    if (!errorToastShown) {
       await showNotification('Capture Failed', err.message);
     }
   }
@@ -434,8 +508,8 @@ async function startAreaCapture() {
     // Capture the pristine tab BEFORE injecting the overlay
     const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
 
-    // Store in chrome.storage.session keyed by tabId so SW idle/restart does not lose the buffer
-    await chrome.storage.session.set({ [`capture_${tab.id}`]: dataUrl });
+    // Store in IndexedDB (with session fallback) to survive SW idle and avoid 10MB quota
+    await setPendingCapture(tab.id, dataUrl);
 
     // Inject self-contained Shadow DOM overlay script into the active tab
     await chrome.scripting.executeScript({
@@ -443,6 +517,9 @@ async function startAreaCapture() {
       files: ['content/overlay.js']
     });
   } catch (err) {
+    if (tab?.id) {
+      await removePendingCapture(tab.id);
+    }
     console.error('Area capture error:', err);
     await showNotification('Area Capture Error', err.message);
   }
@@ -475,7 +552,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.action === 'captureCancelled') {
     if (sender?.tab?.id) {
-      chrome.storage.session.remove([`capture_${sender.tab.id}`]);
+      removePendingCapture(sender.tab.id);
     }
     return false;
   }
@@ -484,14 +561,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       try {
         const tabId = sender?.tab?.id;
-        let rawDataUrl = null;
-
-        if (tabId) {
-          const key = `capture_${tabId}`;
-          const stored = await chrome.storage.session.get([key]);
-          rawDataUrl = stored[key];
-          await chrome.storage.session.remove([key]);
-        }
+        const rawDataUrl = tabId ? await getAndRemovePendingCapture(tabId) : null;
 
         if (!rawDataUrl) {
           await showNotification('Capture Failed', 'Image buffer was lost. Please try again.');
