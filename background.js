@@ -54,11 +54,21 @@ function openBufferDB() {
 async function setPendingCapture(tabId, dataUrl) {
   try {
     const db = await openBufferDB();
-    return new Promise((resolve, reject) => {
+    await new Promise((resolve, reject) => {
       const tx = db.transaction('captures', 'readwrite');
       tx.objectStore('captures').put(dataUrl, String(tabId));
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error);
+      };
+      tx.onabort = () => {
+        db.close();
+        reject(tx.error || new Error('IndexedDB transaction aborted'));
+      };
     });
   } catch (err) {
     console.warn('IndexedDB set failed, using session storage fallback:', err);
@@ -75,9 +85,19 @@ async function getAndRemovePendingCapture(tabId) {
       const getReq = store.get(String(tabId));
       getReq.onsuccess = () => {
         store.delete(String(tabId));
+      };
+      tx.oncomplete = () => {
+        db.close();
         resolve(getReq.result);
       };
-      getReq.onerror = () => reject(getReq.error);
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error);
+      };
+      tx.onabort = () => {
+        db.close();
+        reject(tx.error || new Error('IndexedDB transaction aborted'));
+      };
     });
     if (dataUrl) return dataUrl;
   } catch (err) {
@@ -98,6 +118,9 @@ async function removePendingCapture(tabId) {
     const db = await openBufferDB();
     const tx = db.transaction('captures', 'readwrite');
     tx.objectStore('captures').delete(String(tabId));
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => db.close();
+    tx.onabort = () => db.close();
   } catch (_) {}
   try {
     await chrome.storage.session.remove([`capture_${tabId}`]);
@@ -392,7 +415,7 @@ async function handleCapturePipeline(rawDataUrl, bounds = null, tabId = null) {
   const quality = config.imageQuality ? config.imageQuality / 100 : 0.92;
 
   // Show immediate in-page uploading toast
-  const hasToast = await showInPageToast(tabId, 'uploading');
+  await showInPageToast(tabId, 'uploading');
 
   try {
     // Process image via offscreen canvas (handles cropping, format conversion, and thumbnail generation)
@@ -477,8 +500,9 @@ function isRestrictedUrl(url) {
 
 // Start full visible tab capture
 async function startTabCapture() {
+  let tab = null;
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.id) return;
 
     if (isRestrictedUrl(tab.url)) {
@@ -496,8 +520,9 @@ async function startTabCapture() {
 
 // Start area selection crop capture
 async function startAreaCapture() {
+  let tab = null;
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.id) return;
 
     if (isRestrictedUrl(tab.url)) {
@@ -517,7 +542,7 @@ async function startAreaCapture() {
       files: ['content/overlay.js']
     });
   } catch (err) {
-    if (tab?.id) {
+    if (tab && tab.id) {
       await removePendingCapture(tab.id);
     }
     console.error('Area capture error:', err);
